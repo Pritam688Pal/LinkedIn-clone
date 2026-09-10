@@ -57,3 +57,20 @@ export const logInUser = async (req, res) => {
 		return res.status(500).json({ message: "Internal server error" });
 	}
 };
+
+export const updateProfilePicture = async (req, res) => {
+	const { token } = req.body;
+	try {
+		const user = await User.findOne({ token });
+		if (!user) {
+			return res.status(401).json({ message: "Unauthorized" });
+		}
+		user.profilePicture = req.file.path;
+		await user.save();
+		return res
+			.status(200)
+			.json({ message: "Profile picture updated successfully" });
+	} catch (error) {
+		return res.status(500).json({ message: "Internal server error" });
+	}
+};
