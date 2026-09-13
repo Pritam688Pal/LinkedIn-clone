@@ -1,7 +1,19 @@
+import dotenv from "dotenv";
+dotenv.config();
 import User from "../models/user.model.js";
 import Profile from "../models/profile.model.js";
 import bcrypt from "bcrypt";
 import crypto from "node:crypto";
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import path from "node:path";
+
+const s3Client = new S3Client({
+	region: process.env.AWS_REGION,
+	credentials: {
+		accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+		secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+	},
+});
 
 export const registertUser = async (req, res) => {
 	try {
@@ -60,17 +72,51 @@ export const logInUser = async (req, res) => {
 
 export const updateProfilePicture = async (req, res) => {
 	const { token } = req.body;
+
 	try {
+		if (!req.file) {
+			return res.status(400).json({
+				message: "Profile picture is required",
+			});
+		}
+
+		if (!process.env.S3_BUCKET_NAME || !process.env.AWS_REGION) {
+			return res.status(500).json({
+				message: "S3 configuration is missing",
+			});
+		}
+
 		const user = await User.findOne({ token });
+
 		if (!user) {
 			return res.status(401).json({ message: "Unauthorized" });
 		}
-		user.profilePicture = req.file.path;
+
+		const extension = path.extname(req.file.originalname);
+		const key = `profile-pictures/${user._id}-${Date.now()}${extension}`;
+
+		await s3Client.send(
+			new PutObjectCommand({
+				Bucket: process.env.S3_BUCKET_NAME,
+				Key: key,
+				Body: req.file.buffer,
+				ContentType: req.file.mimetype,
+			}),
+		);
+
+		const imageUrl = `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+
+		user.profilePicture = imageUrl;
 		await user.save();
-		return res
-			.status(200)
-			.json({ message: "Profile picture updated successfully" });
+
+		return res.status(200).json({
+			message: "Profile picture uploaded successfully",
+			profilePicture: imageUrl,
+		});
 	} catch (error) {
-		return res.status(500).json({ message: "Internal server error" });
+		console.error("S3 upload failed:", error);
+		return res.status(500).json({
+			message: "Profile picture upload failed",
+		});
 	}
 };
