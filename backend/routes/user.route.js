@@ -5,6 +5,8 @@ import {
 	registertUser,
 	logInUser,
 	updateProfilePicture,
+	updateUserProfile,
+	userProfile,
 } from "../controllers/user.controller.js";
 
 const router = Router();
@@ -30,5 +32,7 @@ router.post(
 	upload.single("file"),
 	updateProfilePicture,
 );
+router.post("/user_update", updateUserProfile);
+router.post("/user_profile", userProfile);
 
 export default router;

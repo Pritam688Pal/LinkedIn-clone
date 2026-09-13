@@ -120,3 +120,51 @@ export const updateProfilePicture = async (req, res) => {
 		});
 	}
 };
+
+export const updateUserProfile = async (req, res) => {
+	const { token, name, username, email } = req.body;
+	try {
+		if (!token) {
+			return res.status(400).json({ message: "Token is required" });
+		}
+		const user = await User.findOne({ token });
+		if (!user) {
+			return res.status(401).json({ message: "Unauthorized" });
+		}
+		user.name = name || user.name;
+		user.username = username || user.username;
+		user.email = email || user.email;
+		await user.save();
+		return res
+			.status(200)
+			.json({ message: "User profile updated successfully" });
+	} catch (error) {
+		return res.status(500).json({ message: "Internal server error" });
+	}
+};
+
+export const userProfile = async (req, res) => {
+	const { token } = req.body;
+	try {
+		if (!token) {
+			return res.status(400).json({ message: "Token is required" });
+		}
+		const user = await User.findOne({ token });
+		if (!user) {
+			return res.status(401).json({ message: "Unauthorized" });
+		}
+		const profile = await Profile.findOne({ userId: user._id });
+		return res.status(200).json({
+			name: user.name,
+			username: user.username,
+			email: user.email,
+			profilePicture: user.profilePicture,
+			bio: profile?.bio,
+			location: profile?.location,
+			website: profile?.website,
+			skills: profile?.skills,
+		});
+	} catch (error) {
+		return res.status(500).json({ message: "Internal server error" });
+	}
+};
