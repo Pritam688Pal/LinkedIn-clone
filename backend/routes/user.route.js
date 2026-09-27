@@ -7,6 +7,9 @@ import {
 	updateProfilePicture,
 	updateUserProfile,
 	userProfile,
+	updateUserProfileDetails,
+	getAllUsersProfile,
+	downloadProfile,
 } from "../controllers/user.controller.js";
 
 const router = Router();
@@ -34,5 +37,8 @@ router.post(
 );
 router.post("/user_update", updateUserProfile);
 router.post("/user_profile", userProfile);
+router.post("/user_profile_update", updateUserProfileDetails);
+router.get("/all_users_profile", getAllUsersProfile);
+router.get("/download_profile/:userId", downloadProfile);
 
 export default router;

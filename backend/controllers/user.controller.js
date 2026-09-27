@@ -6,6 +6,8 @@ import bcrypt from "bcrypt";
 import crypto from "node:crypto";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import path from "node:path";
+import pdfDocument from "pdfkit";
+import fs from "fs";
 
 const s3Client = new S3Client({
 	region: process.env.AWS_REGION,
@@ -14,6 +16,40 @@ const s3Client = new S3Client({
 		secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
 	},
 });
+
+const convertProfileToPDF = async (profile) => {
+	const doc = new pdfDocument();
+	const outputPath = `./${profile.userId.username}_profile.pdf`;
+	doc.pipe(fs.createWriteStream(outputPath));
+	doc.image(profile.userId.profilePicture, {
+		fit: [100, 100],
+		align: "center",
+	});
+	doc.fontSize(20).text(profile.userId.name, { align: "center" });
+	doc
+		.fontSize(16)
+		.text(`Username: ${profile.userId.username}`, { align: "center" });
+	doc.fontSize(16).text(`Email: ${profile.userId.email}`, { align: "center" });
+	doc.moveDown();
+	doc.fontSize(14).text(`Bio: ${profile.bio || "N/A"}`);
+	doc.moveDown();
+	doc
+		.fontSize(14)
+		.text(`Current Position: ${profile.currentPosition || "N/A"}`);
+	doc.moveDown();
+	doc.fontSize(14).text("Past Work Experience:");
+	profile.pastWorkExperience.forEach((experience, index) => {
+		doc.fontSize(12).text(`${index + 1}. ${experience}`);
+	});
+	doc.moveDown();
+	doc.fontSize(14).text("Education:");
+	profile.education.forEach((edu, index) => {
+		doc.fontSize(12).text(`${index + 1}. ${edu}`);
+	});
+	doc.end();
+
+	return outputPath;
+};
 
 export const registertUser = async (req, res) => {
 	try {
@@ -166,5 +202,62 @@ export const userProfile = async (req, res) => {
 		});
 	} catch (error) {
 		return res.status(500).json({ message: "Internal server error" });
+	}
+};
+
+export const updateUserProfileDetails = async (req, res) => {
+	try {
+		const { token, bio, currentPosition, pastWorkExperience, education } =
+			req.body;
+		const user = await User.findOne({ token });
+		if (!user) {
+			return res.status(401).json({ message: "Unauthorized" });
+		}
+		const profile = await Profile.findOne({ userId: user._id });
+		if (!profile) {
+			return res.status(404).json({ message: "Profile not found" });
+		}
+		profile.bio = bio || profile.bio;
+		profile.currentPosition = currentPosition || profile.currentPosition;
+		profile.pastWorkExperience.push(...(pastWorkExperience || []));
+		profile.education.push(...(education || []));
+		await profile.save();
+		return res
+			.status(200)
+			.json({ message: "User profile details updated successfully" });
+	} catch (error) {
+		return res
+			.status(500)
+			.json({ message: "Internal server error", error: error.message });
+	}
+};
+
+export const getAllUsersProfile = async (req, res) => {
+	const profiles = await Profile.find().populate(
+		"userId",
+		"name username email profilePicture",
+	);
+	return res.status(200).json(profiles);
+};
+
+export const downloadProfile = async (req, res) => {
+	try {
+		// consoule.log("Request query:", req.query);
+		const { userId } = req.params;
+		const profile = await Profile.findOne({ userId }).populate(
+			"userId",
+			"name username email profilePicture",
+		);
+		let profileData = await convertProfileToPDF(profile);
+		res.setHeader("Content-Type", "application/pdf");
+		res.setHeader(
+			"Content-Disposition",
+			`attachment; filename=${profile.userId.username}_profile.pdf`,
+		);
+		return res.send(profileData);
+	} catch (error) {
+		return res
+			.status(500)
+			.json({ message: "Internal server error", error: error.message });
 	}
 };
